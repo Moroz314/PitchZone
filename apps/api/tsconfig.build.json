@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/tsconfig.build.tsbuildinfo",
+    "declaration": false,
+    "declarationMap": false,
+    "removeComments": true
+  },
+  "exclude": ["node_modules", "dist", "test", "**/*spec.ts", "prisma", "scripts"]
+}

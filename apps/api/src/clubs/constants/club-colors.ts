@@ -1,0 +1,30 @@
+export const CLUB_COLOR_PALETTE = [
+  { id: 'lime', hex: '#C6FF3D', label: 'Лайм' },
+  { id: 'cyan', hex: '#3DE7FF', label: 'Циан' },
+  { id: 'white', hex: '#F5F5F5', label: 'Белый' },
+  { id: 'black', hex: '#0B0D12', label: 'Чёрный' },
+  { id: 'navy', hex: '#1a1a2e', label: 'Тёмно-синий' },
+  { id: 'red', hex: '#E63946', label: 'Красный' },
+  { id: 'blue', hex: '#2563EB', label: 'Синий' },
+  { id: 'green', hex: '#16A34A', label: 'Зелёный' },
+  { id: 'yellow', hex: '#EAB308', label: 'Жёлтый' },
+  { id: 'orange', hex: '#F97316', label: 'Оранжевый' },
+  { id: 'purple', hex: '#9333EA', label: 'Фиолетовый' },
+  { id: 'gold', hex: '#CA8A04', label: 'Золотой' },
+] as const;
+
+export const POSITION_LABELS: Record<string, string> = {
+  GK: 'Вратарь',
+  CB: 'Центральный защитник',
+  LB: 'Левый защитник',
+  RB: 'Правый защитник',
+  CDM: 'Опорный полузащитник',
+  CM: 'Центральный полузащитник',
+  CAM: 'Атакующий полузащитник',
+  LM: 'Левый полузащитник',
+  RM: 'Правый полузащитник',
+  LW: 'Левый вингер',
+  RW: 'Правый вингер',
+  ST: 'Нападающий',
+  CF: 'Центральный форвард',
+};

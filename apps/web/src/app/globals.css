@@ -1,0 +1,95 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@layer base {
+  :root {
+    /* PitchZone dark theme — #0B0D12 base */
+    --background: 228 24% 5%;
+    --foreground: 240 7% 96%;
+
+    --card: 225 20% 8%;
+    --card-foreground: 240 7% 96%;
+
+    --popover: 225 20% 10%;
+    --popover-foreground: 240 7% 96%;
+
+    --primary: 76 100% 62%;
+    --primary-foreground: 228 24% 5%;
+
+    --secondary: 225 18% 14%;
+    --secondary-foreground: 240 7% 96%;
+
+    --muted: 225 18% 12%;
+    --muted-foreground: 228 10% 59%;
+
+    --accent: 76 100% 62%;
+    --accent-foreground: 228 24% 5%;
+    --accent-cyan: 189 100% 62%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 228 24% 5%;
+
+    --live: 189 100% 62%;
+    --live-foreground: 228 24% 5%;
+
+    --border: 225 14% 20%;
+    --input: 225 14% 20%;
+    --ring: 76 100% 62%;
+
+    --radius: 0.625rem;
+
+    --prize-gradient: linear-gradient(
+      135deg,
+      hsl(76 100% 62% / 0.15) 0%,
+      hsl(189 100% 62% / 0.1) 50%,
+      hsl(76 100% 62% / 0.05) 100%
+    );
+    --hero-glow: radial-gradient(ellipse 80% 50% at 50% -20%, hsl(76 100% 62% / 0.15), transparent);
+    --glass-gradient: linear-gradient(
+      135deg,
+      hsl(225 20% 12% / 0.8) 0%,
+      hsl(225 20% 8% / 0.6) 100%
+    );
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image: var(--hero-glow);
+    background-repeat: no-repeat;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-display tracking-tight;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply border-border/50 bg-glass-gradient border backdrop-blur-xl;
+  }
+
+  .prize-card {
+    background: var(--prize-gradient);
+    @apply border-accent/20 border;
+  }
+
+  .text-gradient {
+    @apply from-accent to-accent-cyan bg-gradient-to-r bg-clip-text text-transparent;
+  }
+}
