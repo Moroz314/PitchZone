@@ -128,10 +128,7 @@ export async function registerUser(data: {
   return apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(data) });
 }
 
-export async function loginUser(data: {
-  email: string;
-  password: string;
-}): Promise<AuthResponse> {
+export async function loginUser(data: { email: string; password: string }): Promise<AuthResponse> {
   return apiFetch('/auth/login', { method: 'POST', body: JSON.stringify(data) });
 }
 
@@ -284,7 +281,10 @@ export async function acceptTeamInvite(
   });
 }
 
-export async function declineTeamInvite(token: string, inviteId: string): Promise<{ success: boolean }> {
+export async function declineTeamInvite(
+  token: string,
+  inviteId: string,
+): Promise<{ success: boolean }> {
   return apiFetch(`/teams/invites/${inviteId}/decline`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -596,9 +596,12 @@ export async function getTournamentBySlug(
   const params = new URLSearchParams();
   if (options?.invite) params.set('invite', options.invite);
   const query = params.toString();
-  return apiFetch(`/tournaments/slug/${encodeURIComponent(normalized)}${query ? `?${query}` : ''}`, {
-    headers: options?.token ? { Authorization: `Bearer ${options.token}` } : undefined,
-  });
+  return apiFetch(
+    `/tournaments/slug/${encodeURIComponent(normalized)}${query ? `?${query}` : ''}`,
+    {
+      headers: options?.token ? { Authorization: `Bearer ${options.token}` } : undefined,
+    },
+  );
 }
 
 export async function registerForTournament(
@@ -807,10 +810,7 @@ export async function updateTournamentSeeds(
   });
 }
 
-export async function setMatchLive(
-  token: string,
-  matchId: string,
-): Promise<BracketMatch> {
+export async function setMatchLive(token: string, matchId: string): Promise<BracketMatch> {
   return apiFetch(`/tournaments/matches/${matchId}/live`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -880,12 +880,7 @@ export async function updateMatchScore(
   });
 }
 
-export type DisputeStatus =
-  | 'OPEN'
-  | 'UNDER_REVIEW'
-  | 'RESOLVED_A'
-  | 'RESOLVED_B'
-  | 'REJECTED';
+export type DisputeStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED_A' | 'RESOLVED_B' | 'REJECTED';
 
 export interface DisputeListItem {
   id: string;
@@ -1563,7 +1558,10 @@ export async function getSeason(id: string): Promise<SeasonDetail> {
   return apiFetch(`/seasons/${id}`);
 }
 
-export async function getSeasonStandings(id: string, divisionId?: string): Promise<SeasonStandings> {
+export async function getSeasonStandings(
+  id: string,
+  divisionId?: string,
+): Promise<SeasonStandings> {
   const q = divisionId ? `?divisionId=${divisionId}` : '';
   return apiFetch(`/seasons/${id}/standings${q}`);
 }
@@ -1629,10 +1627,7 @@ export async function updateAdminSeason(
   });
 }
 
-export async function deleteAdminSeason(
-  token: string,
-  id: string,
-): Promise<{ success: boolean }> {
+export async function deleteAdminSeason(token: string, id: string): Promise<{ success: boolean }> {
   return apiFetch(`/admin/seasons/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
@@ -1767,7 +1762,10 @@ function statTrackerHeaders(token: string) {
   return { Authorization: `Bearer ${token}` };
 }
 
-export async function getPlayerMatchStats(userId: string, limit = 50): Promise<PlayerMatchStatItem[]> {
+export async function getPlayerMatchStats(
+  userId: string,
+  limit = 50,
+): Promise<PlayerMatchStatItem[]> {
   return apiFetch(`/stats/players/${userId}/matches?limit=${limit}`);
 }
 
@@ -1839,7 +1837,10 @@ export async function getSeasonMatchDetail(matchId: string): Promise<SeasonMatch
   return apiFetch(`/stats/matches/${matchId}`);
 }
 
-export async function getStatTrackerMatches(token: string, seasonId?: string): Promise<StatTrackerMatch[]> {
+export async function getStatTrackerMatches(
+  token: string,
+  seasonId?: string,
+): Promise<StatTrackerMatch[]> {
   const q = seasonId ? `?seasonId=${seasonId}` : '';
   return apiFetch(`/stat-tracker/season-matches${q}`, { headers: statTrackerHeaders(token) });
 }
@@ -1976,7 +1977,12 @@ export async function completeOnboardingProfile(
     telegramUrl?: string;
     discordUsername?: string;
   },
-): Promise<{ success: boolean; gamerTag: string; warnings: string[]; progress: OnboardingProgress }> {
+): Promise<{
+  success: boolean;
+  gamerTag: string;
+  warnings: string[];
+  progress: OnboardingProgress;
+}> {
   return apiFetch('/onboarding/me/profile', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
@@ -2009,7 +2015,10 @@ export async function registerPickupMatch(
   });
 }
 
-export async function leavePickupMatch(token: string, matchId: string): Promise<{ success: boolean }> {
+export async function leavePickupMatch(
+  token: string,
+  matchId: string,
+): Promise<{ success: boolean }> {
   return apiFetch(`/onboarding/pickup-matches/${matchId}/register`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
@@ -2088,7 +2097,12 @@ export interface PlayerProfileOverview {
     cleanSheets: number;
     ranks: Record<string, number | null | undefined>;
   } | null;
-  favoritePositions: { group: string; label: string; matchesPlayed: number; percentOfTotal: number }[];
+  favoritePositions: {
+    group: string;
+    label: string;
+    matchesPlayed: number;
+    percentOfTotal: number;
+  }[];
   positionRatings: {
     position: string;
     positionLabel: string;
@@ -2310,8 +2324,50 @@ export async function triggerEaSyncPoll(token: string): Promise<EaSyncPollResult
   });
 }
 
-export async function triggerEaSyncPollTeam(token: string, teamId: string): Promise<EaSyncPollResult> {
+export async function triggerEaSyncPollTeam(
+  token: string,
+  teamId: string,
+): Promise<EaSyncPollResult> {
   return apiFetch(`/ea-sync/poll/${teamId}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export interface NotificationItem {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  link: string | null;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export async function getNotifications(
+  token: string,
+  unreadOnly = false,
+): Promise<NotificationItem[]> {
+  return apiFetch(`/notifications${unreadOnly ? '?unread=true' : ''}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function getUnreadNotificationCount(token: string): Promise<number> {
+  return apiFetch('/notifications/unread-count', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function markNotificationRead(token: string, id: string): Promise<NotificationItem> {
+  return apiFetch(`/notifications/${id}/read`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function markAllNotificationsRead(token: string): Promise<void> {
+  return apiFetch('/notifications/read-all', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });

@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage, Button } from '@pitchzone/ui';
 
 import { getOnboardingProgress } from '@/lib/api';
+import { NotificationsBell } from './notifications-bell';
 
 const NAV_LINKS = [
   { href: '/', label: 'Турниры' },
@@ -55,6 +56,7 @@ export function Header() {
         <div className="flex items-center gap-3">
           {session?.user ? (
             <>
+              <NotificationsBell />
               {showOnboardingLink && (
                 <Button variant="default" size="sm" className="hidden sm:inline-flex" asChild>
                   <Link href="/start">С чего начать</Link>

@@ -61,8 +61,9 @@ export class PrizePayoutService {
     const commission = Math.floor(gross * (tournament.platformCommissionPercent / 100));
     const distributable = gross - commission;
 
-    const distribution =
-      (tournament.prizeDistribution as unknown as PrizePlace[]) ?? [{ place: 1, percent: 100 }];
+    const distribution = (tournament.prizeDistribution as unknown as PrizePlace[]) ?? [
+      { place: 1, percent: 100 },
+    ];
     const payoutByParticipant = new Map<string, number>();
 
     for (const { place, percent } of distribution) {
@@ -138,10 +139,12 @@ export class PrizePayoutService {
         });
       }
 
-      await tx.escrowAccount.update({
-        where: { tournamentId },
-        data: { status: EscrowStatus.DISTRIBUTED, totalHeld: 0 },
-      });
+      if (tournament.escrow) {
+        await tx.escrowAccount.update({
+          where: { tournamentId },
+          data: { status: EscrowStatus.DISTRIBUTED, totalHeld: 0 },
+        });
+      }
     });
 
     this.logger.log(

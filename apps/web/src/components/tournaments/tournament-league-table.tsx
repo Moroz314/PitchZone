@@ -15,18 +15,11 @@ interface TournamentLeagueTableProps {
 
 function TeamAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string | null }) {
   if (avatarUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={avatarUrl}
-        alt=""
-        className="h-7 w-7 shrink-0 rounded object-cover"
-      />
-    );
+    return <img src={avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded object-cover" />;
   }
 
   return (
-    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-bold uppercase text-muted-foreground">
+    <div className="bg-muted text-muted-foreground flex h-7 w-7 shrink-0 items-center justify-center rounded text-[10px] font-bold uppercase">
       {name.slice(0, 2)}
     </div>
   );
@@ -37,17 +30,17 @@ export function TournamentLeagueTable({ title, groupLabel, entries }: Tournament
 
   if (entries.length === 0) {
     return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
+      <p className="text-muted-foreground py-8 text-center text-sm">
         Таблица появится после регистрации участников и генерации сетки.
       </p>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border/60 bg-card">
+    <div className="border-border/60 bg-card overflow-hidden rounded-lg border">
       <button
         type="button"
-        className="flex w-full items-center justify-between border-b border-border/60 bg-muted/40 px-4 py-3 text-left"
+        className="border-border/60 bg-muted/40 flex w-full items-center justify-between border-b px-4 py-3 text-left"
         onClick={() => setOpen((v) => !v)}
       >
         <span className="font-medium">{title}</span>
@@ -57,7 +50,7 @@ export function TournamentLeagueTable({ title, groupLabel, entries }: Tournament
       {open && (
         <>
           {groupLabel && (
-            <div className="border-b border-border/40 bg-muted/20 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <div className="border-border/40 bg-muted/20 text-muted-foreground border-b px-4 py-2 text-xs font-semibold uppercase tracking-wider">
               {groupLabel}
             </div>
           )}
@@ -65,7 +58,7 @@ export function TournamentLeagueTable({ title, groupLabel, entries }: Tournament
           <div className="overflow-x-auto">
             <table className="w-full min-w-[520px] text-sm">
               <thead>
-                <tr className="border-b border-border/60 bg-muted/30 text-xs uppercase tracking-wide text-muted-foreground">
+                <tr className="border-border/60 bg-muted/30 text-muted-foreground border-b text-xs uppercase tracking-wide">
                   <th className="w-10 px-3 py-2.5 text-left font-medium">#</th>
                   <th className="px-3 py-2.5 text-left font-medium">Команда</th>
                   <th className="w-10 px-2 py-2.5 text-center font-medium">И</th>
@@ -87,16 +80,16 @@ export function TournamentLeagueTable({ title, groupLabel, entries }: Tournament
                     <tr
                       key={row.participantId}
                       className={cn(
-                        'border-b border-border/30 transition-colors hover:bg-muted/20',
+                        'border-border/30 hover:bg-muted/20 border-b transition-colors',
                         index === 0 && row.points > 0 && 'bg-accent/5',
                       )}
                     >
-                      <td className="px-3 py-2.5 text-muted-foreground">{row.position}</td>
+                      <td className="text-muted-foreground px-3 py-2.5">{row.position}</td>
                       <td className="px-3 py-2.5">
                         <div className="flex items-center gap-2.5">
                           <TeamAvatar name={row.name} avatarUrl={row.avatarUrl} />
                           {href ? (
-                            <Link href={href} className="font-medium hover:text-accent">
+                            <Link href={href} className="hover:text-accent font-medium">
                               {row.name}
                             </Link>
                           ) : (
@@ -107,11 +100,11 @@ export function TournamentLeagueTable({ title, groupLabel, entries }: Tournament
                       <td className="px-2 py-2.5 text-center tabular-nums">{row.matchesPlayed}</td>
                       <td className="px-2 py-2.5 text-center tabular-nums">{row.wins}</td>
                       <td className="px-2 py-2.5 text-center tabular-nums">{row.losses}</td>
-                      <td className="px-2 py-2.5 text-center tabular-nums text-muted-foreground">
+                      <td className="text-muted-foreground px-2 py-2.5 text-center tabular-nums">
                         {row.goalsFor}:{row.goalsAgainst}
                       </td>
                       <td className="px-3 py-2.5 text-center">
-                        <span className="font-semibold tabular-nums text-accent">{row.points}</span>
+                        <span className="text-accent font-semibold tabular-nums">{row.points}</span>
                       </td>
                     </tr>
                   );
