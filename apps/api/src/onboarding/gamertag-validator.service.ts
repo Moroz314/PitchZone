@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
-const GAMERTAG_PATTERN = /^[A-Za-z0-9 _\-]{3,16}$/;
+const GAMERTAG_PATTERN = /^[A-Za-z0-9 _-]{3,16}$/;
 
 @Injectable()
 export class GamertagValidatorService {

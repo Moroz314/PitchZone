@@ -1,5 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { MatchStatus, SeasonMatchStatus, SeasonStatus, TournamentStatus } from '@prisma/client';
+import {
+  MatchEaSyncStatus,
+  MatchStatus,
+  SeasonMatchStatus,
+  SeasonStatus,
+  TournamentStatus,
+} from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { EaClubMatchSummary } from './providers/stats-provider.interface';
@@ -95,6 +101,7 @@ export class EaMatchMatcherService {
             ],
           },
           { eaMatchId: null },
+          { eaSyncStatus: { not: MatchEaSyncStatus.NEEDS_REVIEW } },
           { status: { in: [SeasonMatchStatus.SCHEDULED, SeasonMatchStatus.COMPLETED] } },
         ],
       },
@@ -151,6 +158,7 @@ export class EaMatchMatcherService {
           { participant1Id: { in: oppIds }, participant2Id: { in: linkIds } },
         ],
         eaMatchId: null,
+        eaSyncStatus: { not: MatchEaSyncStatus.NEEDS_REVIEW },
         status: {
           in: [MatchStatus.SCHEDULED, MatchStatus.IN_PROGRESS, MatchStatus.PENDING],
         },

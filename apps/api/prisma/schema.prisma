@@ -854,19 +854,21 @@ model EaApiMatchImport {
 }
 
 model SeasonMatch {
-  id          String            @id @default(cuid())
-  seasonId    String
-  divisionId  String?
-  roundNumber Int               @default(1)
-  weekLabel   String?
-  homeTeamId  String
-  awayTeamId  String
-  homeScore   Int?
-  awayScore   Int?
-  status      SeasonMatchStatus @default(SCHEDULED)
-  playedAt    DateTime?
-  eaMatchId   String?           @unique
-  createdAt   DateTime          @default(now())
+  id           String            @id @default(cuid())
+  seasonId     String
+  divisionId   String?
+  roundNumber  Int               @default(1)
+  weekLabel    String?
+  homeTeamId   String
+  awayTeamId   String
+  homeScore    Int?
+  awayScore    Int?
+  status       SeasonMatchStatus @default(SCHEDULED)
+  playedAt     DateTime?
+  eaMatchId    String?           @unique
+  eaSyncStatus MatchEaSyncStatus @default(AWAITING_EA)
+  eaSyncNote   String?
+  createdAt    DateTime          @default(now())
 
   season       Season            @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   division     Division?         @relation(fields: [divisionId], references: [id])
@@ -877,6 +879,7 @@ model SeasonMatch {
 
   @@index([seasonId])
   @@index([status])
+  @@index([eaSyncStatus])
 }
 
 model PlayerMatchStat {

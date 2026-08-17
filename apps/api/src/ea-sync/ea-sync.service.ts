@@ -1,5 +1,11 @@
 import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
-import { EaApiImportStatus, MatchEaSyncStatus, MatchStatus, PlayerPosition, SeasonMatchStatus } from '@prisma/client';
+import {
+  EaApiImportStatus,
+  MatchEaSyncStatus,
+  MatchStatus,
+  PlayerPosition,
+  SeasonMatchStatus,
+} from '@prisma/client';
 
 import { PlayerProfileAggregationService } from '../player-profile/player-profile.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -10,7 +16,7 @@ import { BracketService } from '../tournaments/bracket.service';
 import { TournamentsGateway } from '../tournaments/tournaments.gateway';
 import { TournamentsService } from '../tournaments/tournaments.service';
 import { EaClubLinkService } from './ea-club-link.service';
-import { EaMatchMatcherService } from './ea-match-matcher.service';
+import { EaMatchMatcherService, InternalMatchLinkResult } from './ea-match-matcher.service';
 import { mapEaPosition, passAccuracyPercent } from './ea-position.mapper';
 import { EaProClubsStatsProvider } from './providers/ea-pro-clubs.provider';
 import { EaClubMatchSummary } from './providers/stats-provider.interface';
@@ -22,6 +28,16 @@ export interface EaSyncRunResult {
   needsReview: number;
   skipped: number;
   errors: string[];
+}
+
+export interface EaIncomingMatchData {
+  eaMatch: EaClubMatchSummary;
+  linkId: string;
+  linkTeamId: string;
+  opponentEaClubId: string;
+  systemUserId: string;
+  result: EaSyncRunResult;
+  resolved: Extract<InternalMatchLinkResult, { status: 'MATCHED' }>;
 }
 
 @Injectable()
@@ -61,7 +77,14 @@ export class EaSyncService {
 
     for (const link of links) {
       try {
-        await this.pollClubLink(link.id, link.teamId, link.eaClubId, link.platform, systemUserId, result);
+        await this.pollClubLink(
+          link.id,
+          link.teamId,
+          link.eaClubId,
+          link.platform,
+          systemUserId,
+          result,
+        );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         result.errors.push(`${link.team.tag}: ${msg}`);
@@ -211,28 +234,62 @@ export class EaSyncService {
     });
     const knownIds = new Set(knownImports.map((i) => i.eaMatchId));
 
-    for (const eaMatch of matches) {
-      if (knownIds.has(eaMatch.matchId)) {
-        result.skipped++;
+    const unimported = matches.filter((m) => !knownIds.has(m.matchId));
+
+    const matchedGroups = new Map<
+      string,
+      {
+        eaMatch: EaClubMatchSummary;
+        linkResult: Extract<InternalMatchLinkResult, { status: 'MATCHED' }>;
+      }[]
+    >();
+    const unmatched: { eaMatch: EaClubMatchSummary; linkResult: InternalMatchLinkResult }[] = [];
+
+    for (const eaMatch of unimported) {
+      result.newMatches++;
+      const opponentEaClubId = this.matcher.resolveOpponentEaClubId(eaClubId, eaMatch);
+      const linkResult = await this.matcher.findInternalMatch(teamId, eaMatch, opponentEaClubId);
+
+      if (linkResult.status === 'MATCHED') {
+        const key = `${linkResult.kind}:${linkResult.matchId}`;
+        const group = matchedGroups.get(key) ?? [];
+        group.push({ eaMatch, linkResult });
+        matchedGroups.set(key, group);
+      } else {
+        unmatched.push({ eaMatch, linkResult });
+      }
+    }
+
+    for (const group of matchedGroups.values()) {
+      if (group.length > 1) {
+        await this.markAmbiguousEaMatches(
+          linkId,
+          group.map((g) => g.eaMatch),
+          group[0].linkResult,
+          result,
+        );
         continue;
       }
 
-      result.newMatches++;
-      await this.processEaMatch(linkId, teamId, eaClubId, platform, eaMatch, systemUserId, result);
+      const { eaMatch, linkResult } = group[0];
+      await this.processIncomingEaMatch({
+        eaMatch,
+        linkId,
+        linkTeamId: teamId,
+        opponentEaClubId: this.matcher.resolveOpponentEaClubId(eaClubId, eaMatch),
+        systemUserId,
+        result,
+        resolved: linkResult,
+      });
+    }
+
+    for (const { eaMatch, linkResult } of unmatched) {
+      await this.createReviewImport(linkId, eaMatch, linkResult, result);
     }
   }
 
-  private async processEaMatch(
-    linkId: string,
-    teamId: string,
-    eaClubId: string,
-    platform: import('@prisma/client').EaClubPlatform,
-    eaMatch: EaClubMatchSummary,
-    systemUserId: string,
-    result: EaSyncRunResult,
-  ) {
-    const opponentEaClubId = this.matcher.resolveOpponentEaClubId(eaClubId, eaMatch);
-    const linkResult = await this.matcher.findInternalMatch(teamId, eaMatch, opponentEaClubId);
+  private async processIncomingEaMatch(matchData: EaIncomingMatchData) {
+    const { eaMatch, linkId, linkTeamId, systemUserId, result, resolved } = matchData;
 
     const importRecord = await this.prisma.eaApiMatchImport.create({
       data: {
@@ -240,62 +297,45 @@ export class EaSyncService {
         eaClubLinkId: linkId,
         rawJson: eaMatch.raw as object,
         importStatus: EaApiImportStatus.NEEDS_REVIEW,
-        reviewNote:
-          linkResult.status === 'MATCHED'
-            ? null
-            : linkResult.status === 'NEEDS_REVIEW'
-              ? linkResult.reason
-              : linkResult.reason,
-        matchedSeasonMatchId:
-          linkResult.status === 'MATCHED' && linkResult.kind === 'season'
-            ? linkResult.matchId
-            : null,
-        matchedTournamentMatchId:
-          linkResult.status === 'MATCHED' && linkResult.kind === 'tournament'
-            ? linkResult.matchId
-            : null,
+        matchedSeasonMatchId: resolved.kind === 'season' ? resolved.matchId : null,
+        matchedTournamentMatchId: resolved.kind === 'tournament' ? resolved.matchId : null,
       },
     });
 
-    if (linkResult.status !== 'MATCHED') {
-      result.needsReview++;
-      return;
-    }
-
-    if (linkResult.kind === 'season') {
-      await this.processSeasonEaMatch(
-        linkId,
-        linkResult.matchId,
+    if (resolved.kind === 'season') {
+      await this.processIncomingSeasonMatch(
+        resolved.matchId,
         eaMatch,
         importRecord.id,
+        linkId,
         systemUserId,
         result,
       );
       return;
     }
 
-    await this.processTournamentEaMatch(
-      linkId,
-      teamId,
-      linkResult.matchId,
+    await this.processIncomingTournamentMatch(
+      resolved.matchId,
+      linkTeamId,
       eaMatch,
       importRecord.id,
+      linkId,
       systemUserId,
       result,
     );
   }
 
-  private async processSeasonEaMatch(
-    linkId: string,
+  private async processIncomingSeasonMatch(
     seasonMatchId: string,
     eaMatch: EaClubMatchSummary,
     importRecordId: string,
+    linkId: string,
     systemUserId: string,
     result: EaSyncRunResult,
   ) {
     const seasonMatch = await this.prisma.seasonMatch.findUnique({
       where: { id: seasonMatchId },
-      select: { id: true, eaMatchId: true, homeTeamId: true, awayTeamId: true },
+      select: { id: true, eaMatchId: true, homeTeamId: true, awayTeamId: true, status: true },
     });
     if (!seasonMatch) {
       result.needsReview++;
@@ -352,6 +392,8 @@ export class EaSyncService {
           awayScore: scores.awayScore,
           status: SeasonMatchStatus.COMPLETED,
           playedAt: eaMatch.timestamp,
+          eaSyncStatus: MatchEaSyncStatus.SYNCED,
+          eaSyncNote: null,
         },
       }),
       this.prisma.eaApiMatchImport.update({
@@ -368,12 +410,12 @@ export class EaSyncService {
     result.imported++;
   }
 
-  private async processTournamentEaMatch(
-    linkId: string,
-    linkTeamId: string,
+  private async processIncomingTournamentMatch(
     tournamentMatchId: string,
+    linkTeamId: string,
     eaMatch: EaClubMatchSummary,
     importRecordId: string,
+    linkId: string,
     systemUserId: string,
     result: EaSyncRunResult,
   ) {
@@ -463,14 +505,17 @@ export class EaSyncService {
       }),
     ]);
 
-    await this.bracketService.finalizeMatchFromEa(tournamentMatchId, scores.homeScore, scores.awayScore);
+    await this.bracketService.finalizeMatchFromEa(
+      tournamentMatchId,
+      scores.homeScore,
+      scores.awayScore,
+    );
 
     const userIds = [...new Set(createdStats.map((s) => s.userId))];
-    await this.tournamentStats.recalculateAfterTournamentMatchImport(
-      match.tournamentId,
-      userIds,
-      [p1.teamId, p2.teamId],
-    );
+    await this.tournamentStats.recalculateAfterTournamentMatchImport(match.tournamentId, userIds, [
+      p1.teamId,
+      p2.teamId,
+    ]);
 
     for (const userId of userIds) {
       await this.playerProfile.recalculateCareerStats(userId);
@@ -492,11 +537,77 @@ export class EaSyncService {
     result.imported++;
   }
 
+  private async markAmbiguousEaMatches(
+    linkId: string,
+    eaMatches: EaClubMatchSummary[],
+    resolved: Extract<InternalMatchLinkResult, { status: 'MATCHED' }>,
+    result: EaSyncRunResult,
+  ) {
+    const reviewNote = `Несколько EA-матчей (${eaMatches.length}) подходят под одно окно времени между клубами — требуется ручная привязка`;
+    const syncData = { eaSyncStatus: MatchEaSyncStatus.NEEDS_REVIEW, eaSyncNote: reviewNote };
+
+    if (resolved.kind === 'season') {
+      await this.prisma.seasonMatch.update({ where: { id: resolved.matchId }, data: syncData });
+    } else {
+      await this.prisma.match.update({ where: { id: resolved.matchId }, data: syncData });
+    }
+
+    await this.prisma.$transaction(
+      eaMatches.map((eaMatch) =>
+        this.prisma.eaApiMatchImport.create({
+          data: {
+            eaMatchId: eaMatch.matchId,
+            eaClubLinkId: linkId,
+            rawJson: eaMatch.raw as object,
+            importStatus: EaApiImportStatus.NEEDS_REVIEW,
+            reviewNote,
+            matchedSeasonMatchId: resolved.kind === 'season' ? resolved.matchId : null,
+            matchedTournamentMatchId: resolved.kind === 'tournament' ? resolved.matchId : null,
+          },
+        }),
+      ),
+    );
+
+    result.needsReview += eaMatches.length;
+  }
+
+  private async createReviewImport(
+    linkId: string,
+    eaMatch: EaClubMatchSummary,
+    linkResult: InternalMatchLinkResult,
+    result: EaSyncRunResult,
+  ) {
+    let reviewNote: string;
+    if (linkResult.status === 'NEEDS_REVIEW') {
+      reviewNote = linkResult.candidateIds.length
+        ? `${linkResult.reason} (ID: ${linkResult.candidateIds.join(', ')})`
+        : linkResult.reason;
+    } else if (linkResult.status === 'NO_CANDIDATE') {
+      reviewNote = linkResult.reason;
+    } else {
+      reviewNote = 'EA-матч не привязан к запланированному матчу';
+    }
+
+    await this.prisma.eaApiMatchImport.create({
+      data: {
+        eaMatchId: eaMatch.matchId,
+        eaClubLinkId: linkId,
+        rawJson: eaMatch.raw as object,
+        importStatus: EaApiImportStatus.NEEDS_REVIEW,
+        reviewNote,
+      },
+    });
+
+    result.needsReview++;
+  }
+
   private async importPlayerStatsForTeams(
     teamAId: string,
     teamBId: string,
     eaMatch: EaClubMatchSummary,
-    importFn: (players: Awaited<ReturnType<EaSyncService['mapEaPlayersToEntries']>>) => Promise<{ userId: string }[]>,
+    importFn: (
+      players: Awaited<ReturnType<EaSyncService['mapEaPlayersToEntries']>>,
+    ) => Promise<{ userId: string }[]>,
   ) {
     const raw = eaMatch.raw as Parameters<EaProClubsStatsProvider['parsePlayersFromRaw']>[0];
     const allCreated: { userId: string }[] = [];
