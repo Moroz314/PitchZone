@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { DisputeStatus, MatchStatus, TeamRole } from '@prisma/client';
 
+import { MatchFallbackService } from '../fallback/match-fallback.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
 import { BracketService } from '../tournaments/bracket.service';
@@ -20,6 +21,7 @@ export class MatchesService {
     private readonly bracketService: BracketService,
     private readonly tournamentsService: TournamentsService,
     private readonly gateway: TournamentsGateway,
+    private readonly fallbackService: MatchFallbackService,
   ) {}
 
   async findById(matchId: string) {
@@ -83,11 +85,7 @@ export class MatchesService {
     }
 
     const match = await this.loadMatchWithParticipants(matchId);
-    const side = await this.resolveSideForUser(
-      match.participant1Id,
-      match.participant2Id,
-      userId,
-    );
+    const side = await this.resolveSideForUser(match.participant1Id, match.participant2Id, userId);
     if (!side) {
       throw new ForbiddenException('Вы не участник этого матча');
     }
@@ -99,12 +97,10 @@ export class MatchesService {
       throw new BadRequestException('Сейчас нельзя отправить результат');
     }
 
+    await this.fallbackService.cancelFallbackCheck(matchId);
+
     const participantId = side === 1 ? match.participant1Id! : match.participant2Id!;
-    const proofUrl = await this.storage.uploadMatchProof(
-      file,
-      match.tournamentId,
-      matchId,
-    );
+    const proofUrl = await this.storage.uploadMatchProof(file, match.tournamentId, matchId);
 
     await this.prisma.matchSubmission.upsert({
       where: { matchId_participantId: { matchId, participantId } },
@@ -149,19 +145,41 @@ export class MatchesService {
     const sub2 = match.submissions.find((s) => s.participantId === p2Id);
 
     if (!sub1 || !sub2) {
-      const timeoutHours = match.tournament.matchResultTimeoutHours;
-      const deadline = new Date(Date.now() + timeoutHours * 60 * 60 * 1000);
+      const isFallback = match.fallbackDeadline != null;
+      const timeoutMs = isFallback
+        ? this.fallbackService.confirmationTimeoutMs
+        : match.tournament.matchResultTimeoutHours * 60 * 60 * 1000;
+      const deadline = new Date(Date.now() + timeoutMs);
+
+      const updateData: {
+        status: MatchStatus;
+        confirmationDeadline: Date;
+        fallbackAutoAcceptDeadline?: Date;
+      } = {
+        status: MatchStatus.AWAITING_CONFIRMATION,
+        confirmationDeadline: deadline,
+      };
+
+      if (isFallback) {
+        updateData.fallbackAutoAcceptDeadline = deadline;
+      }
 
       await this.prisma.match.update({
         where: { id: matchId },
-        data: {
-          status: MatchStatus.AWAITING_CONFIRMATION,
-          confirmationDeadline: deadline,
-        },
+        data: updateData,
       });
+
+      if (isFallback) {
+        const existingSub = sub1 ?? sub2;
+        if (existingSub) {
+          await this.fallbackService.scheduleAutoAccept(matchId, existingSub.submittedAt);
+        }
+      }
 
       return this.emitMatchUpdate(matchId);
     }
+
+    await this.fallbackService.cancelAutoAccept(matchId);
 
     const scoresMatch = sub1.score1 === sub2.score1 && sub1.score2 === sub2.score2;
 
@@ -231,11 +249,7 @@ export class MatchesService {
   ) {
     if (match.tournament.organizerId === userId) return;
 
-    const side = await this.resolveSideForUser(
-      match.participant1Id,
-      match.participant2Id,
-      userId,
-    );
+    const side = await this.resolveSideForUser(match.participant1Id, match.participant2Id, userId);
     if (!side) {
       throw new ForbiddenException('Вы не участник этого матча');
     }

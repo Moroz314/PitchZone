@@ -16,6 +16,8 @@ import { AdminModule } from './admin/admin.module';
 import { ClubsModule } from './clubs/clubs.module';
 import { TransfersModule } from './transfers/transfers.module';
 import { ContractsModule } from './contracts/contracts.module';
+import { FallbackModule } from './fallback/fallback.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { SeasonsModule } from './seasons/seasons.module';
 import { StatsModule } from './stats/stats.module';
 import { OnboardingModule } from './onboarding/onboarding.module';
@@ -45,6 +47,8 @@ import { EaSyncModule } from './ea-sync/ea-sync.module';
     OnboardingModule,
     PlayerProfileModule,
     EaSyncModule,
+    NotificationsModule,
+    FallbackModule,
     HealthModule,
   ],
   controllers: [AppController],

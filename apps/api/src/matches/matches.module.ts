@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 
+import { FallbackModule } from '../fallback/fallback.module';
 import { StorageModule } from '../storage/storage.module';
 import { TournamentsModule } from '../tournaments/tournaments.module';
 import { MatchesController } from './matches.controller';
 import { MatchesService } from './matches.service';
 
 @Module({
-  imports: [StorageModule, TournamentsModule],
+  imports: [StorageModule, TournamentsModule, FallbackModule],
   controllers: [MatchesController],
   providers: [MatchesService],
   exports: [MatchesService],

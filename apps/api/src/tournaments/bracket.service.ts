@@ -1,6 +1,15 @@
 import { BadRequestException, Inject, Injectable, forwardRef } from '@nestjs/common';
-import { DisputeStatus, MatchEaSyncStatus, MatchStatus, PaymentStatus, SeedingMode, TournamentFormat, TournamentStatus } from '@prisma/client';
+import {
+  DisputeStatus,
+  MatchEaSyncStatus,
+  MatchStatus,
+  PaymentStatus,
+  SeedingMode,
+  TournamentFormat,
+  TournamentStatus,
+} from '@prisma/client';
 
+import { MatchFallbackService } from '../fallback/match-fallback.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { TournamentCompletionService } from './tournament-completion.service';
 
@@ -17,6 +26,7 @@ export class BracketService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => TournamentCompletionService))
     private readonly tournamentCompletion: TournamentCompletionService,
+    private readonly fallbackService: MatchFallbackService,
   ) {}
 
   async generateBracket(
@@ -47,6 +57,7 @@ export class BracketService {
     });
 
     const now = new Date();
+    const scheduledAt = tournament.startsAt > now ? tournament.startsAt : now;
     for (const match of firstRound) {
       const hasBoth =
         match.participant1Name &&
@@ -61,10 +72,11 @@ export class BracketService {
           where: { id: match.id },
           data: {
             status: MatchStatus.SCHEDULED,
-            scheduledAt: tournament.startsAt > now ? tournament.startsAt : now,
+            scheduledAt,
             eaSyncStatus: MatchEaSyncStatus.AWAITING_EA,
           },
         });
+        await this.fallbackService.scheduleFallbackCheck(match.id, scheduledAt);
       }
     }
   }
@@ -86,8 +98,7 @@ export class BracketService {
     for (let round = numRounds; round >= 1; round--) {
       const matchesInRound = bracketSize / Math.pow(2, round);
       for (let position = 0; position < matchesInRound; position++) {
-        const nextMatchKey =
-          round < numRounds ? `${round + 1}:${Math.floor(position / 2)}` : null;
+        const nextMatchKey = round < numRounds ? `${round + 1}:${Math.floor(position / 2)}` : null;
 
         const match = await this.prisma.match.create({
           data: {
@@ -294,6 +305,8 @@ export class BracketService {
       throw new BadRequestException('Ничья не допускается в плей-офф');
     }
 
+    await this.fallbackService.cancelFallbackCheck(matchId);
+
     const winnerIsP1 = score1 > score2;
     const winnerId = winnerIsP1 ? match.participant1Id : match.participant2Id;
     const winnerName = winnerIsP1 ? match.participant1Name : match.participant2Name;
@@ -308,6 +321,8 @@ export class BracketService {
         isActive: false,
         completedAt: new Date(),
         confirmationDeadline: null,
+        fallbackDeadline: null,
+        fallbackAutoAcceptDeadline: null,
       },
     });
 
@@ -326,14 +341,16 @@ export class BracketService {
         nextMatch.participant2Name !== 'TBD' &&
         nextMatch.status === MatchStatus.PENDING
       ) {
+        const nextScheduledAt = new Date();
         await this.prisma.match.update({
           where: { id: nextMatch.id },
           data: {
             status: MatchStatus.SCHEDULED,
-            scheduledAt: new Date(),
+            scheduledAt: nextScheduledAt,
             eaSyncStatus: MatchEaSyncStatus.AWAITING_EA,
           },
         });
+        await this.fallbackService.scheduleFallbackCheck(nextMatch.id, nextScheduledAt);
       }
     }
 
@@ -360,6 +377,9 @@ export class BracketService {
       match.tournament.format === TournamentFormat.ROUND_ROBIN &&
       match.round === 1
     ) {
+      await this.fallbackService.cancelFallbackCheck(matchId);
+      await this.fallbackService.cancelAutoAccept(matchId);
+
       const updated = await this.prisma.match.update({
         where: { id: matchId },
         data: {
@@ -370,6 +390,8 @@ export class BracketService {
           isActive: false,
           completedAt: new Date(),
           confirmationDeadline: null,
+          fallbackDeadline: null,
+          fallbackAutoAcceptDeadline: null,
           eaSyncStatus: MatchEaSyncStatus.SYNCED,
         },
       });
@@ -406,6 +428,9 @@ export class BracketService {
     });
 
     for (const match of expired) {
+      // Fallback auto-accept is handled by the dedicated delayed job.
+      if (match.fallbackAutoAcceptDeadline) continue;
+
       const reporterId = match.submissions[0]?.userId;
       if (!reporterId) continue;
 
@@ -418,12 +443,16 @@ export class BracketService {
   }
 
   async openDispute(matchId: string, openedById: string, reasonText: string) {
+    await this.fallbackService.cancelFallbackCheck(matchId);
+    await this.fallbackService.cancelAutoAccept(matchId);
+
     await this.prisma.match.update({
       where: { id: matchId },
       data: {
         status: MatchStatus.DISPUTED,
         isActive: false,
         confirmationDeadline: null,
+        fallbackAutoAcceptDeadline: null,
       },
     });
 
