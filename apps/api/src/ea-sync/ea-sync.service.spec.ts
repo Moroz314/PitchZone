@@ -1,4 +1,3 @@
-import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EaClubPlatform } from '@prisma/client';
 
@@ -18,9 +17,9 @@ import { NotificationsService } from '../notifications/notifications.service';
 
 describe('EaSyncService', () => {
   let service: EaSyncService;
-  let prisma: any;
-  let notifications: any;
-  let statsProvider: any;
+  let prisma: unknown;
+  let notifications: unknown;
+  let statsProvider: unknown;
 
   beforeEach(async () => {
     prisma = {
@@ -57,7 +56,9 @@ describe('EaSyncService', () => {
 
     service = module.get<EaSyncService>(EaSyncService);
     // Mock private methods
-    (service as any).resolveSystemUserId = jest.fn().mockResolvedValue('system-id');
+    (service as unknown as { resolveSystemUserId: jest.Mock }).resolveSystemUserId = jest
+      .fn()
+      .mockResolvedValue('system-id');
   });
 
   describe('pollClubLink', () => {
@@ -80,8 +81,15 @@ describe('EaSyncService', () => {
         needsReverification: true,
       });
 
-      const result = { newMatches: 0 } as any;
-      await (service as any).pollClubLink('link-1', 'team-1', '123', 'PC', 'sys', result);
+      const result = { newMatches: 0 } as unknown;
+      await (service as unknown as { pollClubLink: (...args: unknown[]) => unknown }).pollClubLink(
+        'link-1',
+        'team-1',
+        '123',
+        'PC',
+        'sys',
+        result,
+      );
 
       expect(prisma.eaClubLink.update).not.toHaveBeenCalled();
       expect(statsProvider.fetchClubMatches).not.toHaveBeenCalled();
@@ -94,8 +102,15 @@ describe('EaSyncService', () => {
         gameVersion: 'OLD_VERSION',
       });
 
-      const result = { newMatches: 0 } as any;
-      await (service as any).pollClubLink('link-1', 'team-1', '123', 'PC', 'sys', result);
+      const result = { newMatches: 0 } as unknown;
+      await (service as unknown as { pollClubLink: (...args: unknown[]) => unknown }).pollClubLink(
+        'link-1',
+        'team-1',
+        '123',
+        'PC',
+        'sys',
+        result,
+      );
 
       expect(prisma.eaClubLink.update).toHaveBeenCalledWith({
         where: { id: 'link-1' },
@@ -103,7 +118,7 @@ describe('EaSyncService', () => {
       });
       expect(notifications.create).toHaveBeenCalledWith(
         'owner-1',
-        expect.objectContaining({ type: 'EA_CLUB_VERIFICATION_NEEDED' })
+        expect.objectContaining({ type: 'EA_CLUB_VERIFICATION_NEEDED' }),
       );
       expect(statsProvider.fetchClubMatches).not.toHaveBeenCalled();
       expect(statsProvider.verifyClub).not.toHaveBeenCalled();

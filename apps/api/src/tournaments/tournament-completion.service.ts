@@ -26,18 +26,23 @@ export class TournamentCompletionService {
     const tournament = await this.prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: {
-        participants: { include: { team: { include: { members: true } } } }
-      }
+        participants: { include: { team: { include: { members: true } } } },
+      },
     });
 
     if (!tournament) return;
 
     if (tournament.status === TournamentStatus.FINISHED) {
-      this.logger.warn(`Повторный вызов finish для уже завершённого турнира tournamentId=${tournamentId}`);
+      this.logger.warn(
+        `Повторный вызов finish для уже завершённого турнира tournamentId=${tournamentId}`,
+      );
       return;
     }
 
-    let calculatedPayouts: any = null;
+    let calculatedPayouts: {
+      commission: number;
+      payoutsByParticipant: Map<string, number>;
+    } | null = null;
     try {
       calculatedPayouts = await this.prizePayout.calculatePayouts(tournamentId);
     } catch (err) {
@@ -47,11 +52,18 @@ export class TournamentCompletionService {
 
     let prizeDistribution: { place: number; percent: number }[] = [];
     if (typeof tournament.prizeDistribution === 'string') {
-      try { prizeDistribution = JSON.parse(tournament.prizeDistribution); } catch(e) {}
+      try {
+        prizeDistribution = JSON.parse(tournament.prizeDistribution);
+      } catch (e) {
+        this.logger.warn('Failed to parse prizeDistribution', e);
+      }
     } else {
-      prizeDistribution = tournament.prizeDistribution as any;
+      prizeDistribution = tournament.prizeDistribution as unknown as {
+        place: number;
+        percent: number;
+      }[];
     }
-    
+
     if (!Array.isArray(prizeDistribution) || prizeDistribution.length === 0) {
       prizeDistribution = [{ place: 1, percent: 100 }];
     }
@@ -74,17 +86,17 @@ export class TournamentCompletionService {
             name: 'Призёр турнира',
             description: 'Выдается за занятие призового места в турнире',
             category: AwardCategory.TEAM,
-            iconEmoji: '🏆'
+            iconEmoji: '🏆',
           },
-          update: {}
+          update: {},
         });
 
         if (calculatedPayouts?.placements) {
           for (const [participantId, place] of calculatedPayouts.placements) {
-            const placeConfig = prizeDistribution.find(d => d.place === place);
+            const placeConfig = prizeDistribution.find((d) => d.place === place);
             if (!placeConfig) continue;
 
-            const participant = tournament.participants.find(p => p.id === participantId);
+            const participant = tournament.participants.find((p) => p.id === participantId);
             if (!participant) continue;
 
             const awardText = `Занял ${place} место в турнире ${tournament.title}`;
@@ -95,7 +107,7 @@ export class TournamentCompletionService {
                   teamId: participant.teamId,
                   awardId: awardTemplate.id,
                   awardedForText: awardText,
-                }
+                },
               });
 
               for (const member of participant.team.members) {
@@ -104,7 +116,7 @@ export class TournamentCompletionService {
                     userId: member.userId,
                     awardId: awardTemplate.id,
                     awardedForText: awardText,
-                  }
+                  },
                 });
               }
             } else if (participant.userId) {
@@ -113,7 +125,7 @@ export class TournamentCompletionService {
                   userId: participant.userId,
                   awardId: awardTemplate.id,
                   awardedForText: awardText,
-                }
+                },
               });
             }
           }
@@ -133,7 +145,7 @@ export class TournamentCompletionService {
     try {
       const detail = await this.tournamentsService.findBySlug(tournament.slug);
       this.gateway.emitTournamentUpdate(detail.slug, detail);
-      
+
       const sentUserIds = new Set<string>();
       for (const participant of tournament.participants) {
         if (participant.userId && !sentUserIds.has(participant.userId)) {
@@ -141,7 +153,7 @@ export class TournamentCompletionService {
             type: 'TOURNAMENT_FINISHED',
             title: `Турнир завершен!`,
             message: `Турнир ${tournament.title} завершился. Поздравляем победителей!`,
-            link: `/tournaments/${tournament.slug}`
+            link: `/tournaments/${tournament.slug}`,
           });
           sentUserIds.add(participant.userId);
         }
@@ -152,7 +164,7 @@ export class TournamentCompletionService {
                 type: 'TOURNAMENT_FINISHED',
                 title: `Турнир завершен!`,
                 message: `Турнир ${tournament.title} завершился. Результаты уже доступны.`,
-                link: `/tournaments/${tournament.slug}`
+                link: `/tournaments/${tournament.slug}`,
               });
               sentUserIds.add(member.userId);
             }

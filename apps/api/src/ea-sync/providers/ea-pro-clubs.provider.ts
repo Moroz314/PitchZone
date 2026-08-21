@@ -1,11 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EaClubPlatform } from '@prisma/client';
 
-import {
-  EaClubMatchSummary,
-  EaPlayerMatchStat,
-  StatsProvider,
-} from './stats-provider.interface';
+import { EaClubMatchSummary, EaPlayerMatchStat, StatsProvider } from './stats-provider.interface';
 import { parseEaRawPlayer, eaFifaStatsToOtherMetrics } from '../ea-player-stats.mapper';
 
 const EA_BASE = 'https://proclubs.ea.com/api/fc';
@@ -67,7 +63,7 @@ export class EaProClubsStatsProvider implements StatsProvider {
     url.searchParams.set('platform', platformSlug);
     url.searchParams.set('clubIds', eaClubId);
 
-    const json = await this.getJson<any[]>(url.toString());
+    const json = await this.getJson<Record<string, unknown>[]>(url.toString());
     if (!Array.isArray(json) || json.length === 0) return null;
 
     const club = json[0];

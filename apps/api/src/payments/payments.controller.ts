@@ -3,7 +3,6 @@ import {
   Body,
   Controller,
   Get,
-  Injectable,
   Logger,
   Param,
   Post,
@@ -79,7 +78,10 @@ export class PaymentsController {
 
   @Post('mock/complete/:participantId')
   @UseGuards(JwtAuthGuard)
-  async mockComplete(@Param('participantId') participantId: string, @CurrentUser() user: { id: string }) {
+  async mockComplete(
+    @Param('participantId') participantId: string,
+    @CurrentUser() user: { id: string },
+  ) {
     if (!this.payments.isMockMode()) {
       throw new ForbiddenException('Mock payments disabled');
     }
