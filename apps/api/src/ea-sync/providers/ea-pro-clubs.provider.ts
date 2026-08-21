@@ -58,6 +58,25 @@ export class EaProClubsStatsProvider implements StatsProvider {
     return [...byId.values()].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
   }
 
+  async verifyClub(
+    eaClubId: string,
+    platform: EaClubPlatform,
+  ): Promise<{ id: string; name: string } | null> {
+    const platformSlug = PLATFORM_SLUG[platform];
+    const url = new URL(`${EA_BASE}/clubs/overallStats`);
+    url.searchParams.set('platform', platformSlug);
+    url.searchParams.set('clubIds', eaClubId);
+
+    const json = await this.getJson<any[]>(url.toString());
+    if (!Array.isArray(json) || json.length === 0) return null;
+
+    const club = json[0];
+    return {
+      id: String(club.clubId),
+      name: club.clubName,
+    };
+  }
+
   async fetchMatchPlayerStats(
     matchId: string,
     eaClubId: string,

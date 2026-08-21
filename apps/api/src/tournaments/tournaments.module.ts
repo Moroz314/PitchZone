@@ -3,6 +3,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { FallbackModule } from '../fallback/fallback.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { StatsModule } from '../stats/stats.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { BracketService } from './bracket.service';
 import { EloService } from './elo.service';
 import { TournamentCompletionService } from './tournament-completion.service';
@@ -12,7 +13,7 @@ import { TournamentsGateway } from './tournaments.gateway';
 import { TournamentsService } from './tournaments.service';
 
 @Module({
-  imports: [forwardRef(() => PaymentsModule), StatsModule, FallbackModule],
+  imports: [forwardRef(() => PaymentsModule), StatsModule, FallbackModule, NotificationsModule],
   controllers: [TournamentsController],
   providers: [
     TournamentsService,

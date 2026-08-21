@@ -11,6 +11,7 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { EscrowService } from './escrow.service';
+import Decimal from 'decimal.js';
 
 interface PrizePlace {
   place: number;
@@ -26,7 +27,7 @@ export class PrizePayoutService {
     private readonly escrow: EscrowService,
   ) {}
 
-  async distribute(tournamentId: string): Promise<void> {
+  async calculatePayouts(tournamentId: string) {
     const tournament = await this.prisma.tournament.findUnique({
       where: { id: tournamentId },
       include: {
@@ -42,24 +43,18 @@ export class PrizePayoutService {
       },
     });
 
-    if (!tournament) return;
+    if (!tournament) return null;
 
     if (tournament.escrow?.status === EscrowStatus.DISTRIBUTED) {
-      return;
+      return null; // Already distributed
     }
 
     const placements = this.calculatePlacements(tournament.format, tournament.matches);
 
-    for (const [participantId, place] of placements) {
-      await this.prisma.tournamentParticipant.update({
-        where: { id: participantId },
-        data: { placement: place },
-      });
-    }
-
     const gross = this.resolveGrossPool(tournament);
-    const commission = Math.floor(gross * (tournament.platformCommissionPercent / 100));
-    const distributable = gross - commission;
+    const commissionPercent = new Decimal(tournament.platformCommissionPercent).div(100);
+    const commission = new Decimal(gross).mul(commissionPercent).floor().toNumber();
+    const distributable = new Decimal(gross).minus(commission).toNumber();
 
     const distribution = (tournament.prizeDistribution as unknown as PrizePlace[]) ?? [
       { place: 1, percent: 100 },
@@ -70,8 +65,9 @@ export class PrizePayoutService {
       const atPlace = [...placements.entries()].filter(([, p]) => p === place);
       if (atPlace.length === 0) continue;
 
-      const poolForPlace = Math.floor(distributable * (percent / 100));
-      const perWinner = Math.floor(poolForPlace / atPlace.length);
+      const percentDec = new Decimal(percent).div(100);
+      const poolForPlace = new Decimal(distributable).mul(percentDec).floor().toNumber();
+      const perWinner = new Decimal(poolForPlace).div(atPlace.length).floor().toNumber();
 
       for (const [participantId] of atPlace) {
         payoutByParticipant.set(
@@ -81,75 +77,98 @@ export class PrizePayoutService {
       }
     }
 
-    await this.prisma.$transaction(async (tx) => {
-      if (commission > 0) {
-        await tx.transaction.create({
-          data: {
-            userId: tournament.organizerId,
-            type: TransactionType.PLATFORM_COMMISSION,
-            amount: commission,
-            currency: tournament.currency,
-            relatedTournamentId: tournamentId,
-            status: TransactionStatus.COMPLETED,
-          },
-        });
-      }
+    return { tournament, placements, commission, distributable, gross, payoutByParticipant };
+  }
 
-      for (const participant of tournament.participants) {
-        const amount = payoutByParticipant.get(participant.id) ?? 0;
+  async executePayouts(
+    tx: import('@prisma/client').Prisma.TransactionClient,
+    calculated: NonNullable<Awaited<ReturnType<typeof this.calculatePayouts>>>,
+  ): Promise<void> {
+    const { tournament, placements, commission, gross, distributable, payoutByParticipant } = calculated;
 
-        await tx.tournamentParticipant.update({
-          where: { id: participant.id },
-          data: { prizeAmount: amount },
-        });
+    for (const [participantId, place] of placements) {
+      await tx.tournamentParticipant.update({
+        where: { id: participantId },
+        data: { placement: place },
+      });
+    }
 
-        if (amount <= 0) continue;
+    if (commission > 0) {
+      await tx.transaction.create({
+        data: {
+          userId: tournament.organizerId,
+          type: TransactionType.PLATFORM_COMMISSION,
+          amount: commission,
+          currency: tournament.currency,
+          relatedTournamentId: tournament.id,
+          status: TransactionStatus.COMPLETED,
+        },
+      });
+    }
 
-        const payeeUserId = this.resolvePayeeUserId(participant);
-        if (!payeeUserId) continue;
+    for (const participant of tournament.participants) {
+      const amount = payoutByParticipant.get(participant.id) ?? 0;
 
-        const wallet = await tx.wallet.upsert({
-          where: { userId: payeeUserId },
-          create: { userId: payeeUserId, currency: tournament.currency },
-          update: {},
-        });
+      await tx.tournamentParticipant.update({
+        where: { id: participant.id },
+        data: { prizeAmount: amount },
+      });
 
-        await tx.wallet.update({
-          where: { id: wallet.id },
-          data: { balance: { increment: amount } },
-        });
+      if (amount <= 0) continue;
 
-        await tx.transaction.create({
-          data: {
-            userId: payeeUserId,
-            walletId: wallet.id,
-            type: TransactionType.PRIZE_PAYOUT,
-            amount,
-            currency: tournament.currency,
-            relatedTournamentId: tournamentId,
-            relatedParticipantId: participant.id,
-            status: TransactionStatus.COMPLETED,
-          },
-        });
+      const payeeUserId = this.resolvePayeeUserId(participant);
+      if (!payeeUserId) continue;
 
-        await tx.playerStats.upsert({
-          where: { userId: payeeUserId },
-          create: { userId: payeeUserId, totalEarnings: amount },
-          update: { totalEarnings: { increment: amount } },
-        });
-      }
+      const wallet = await tx.wallet.upsert({
+        where: { userId: payeeUserId },
+        create: { userId: payeeUserId, currency: tournament.currency },
+        update: {},
+      });
 
-      if (tournament.escrow) {
-        await tx.escrowAccount.update({
-          where: { tournamentId },
-          data: { status: EscrowStatus.DISTRIBUTED, totalHeld: 0 },
-        });
-      }
-    });
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: { increment: amount } },
+      });
+
+      await tx.transaction.create({
+        data: {
+          userId: payeeUserId,
+          walletId: wallet.id,
+          type: TransactionType.PRIZE_PAYOUT,
+          amount,
+          currency: tournament.currency,
+          relatedTournamentId: tournament.id,
+          relatedParticipantId: participant.id,
+          status: TransactionStatus.COMPLETED,
+        },
+      });
+
+      await tx.playerStats.upsert({
+        where: { userId: payeeUserId },
+        create: { userId: payeeUserId, totalEarnings: amount },
+        update: { totalEarnings: { increment: amount } },
+      });
+    }
+
+    if (tournament.escrow) {
+      await tx.escrowAccount.update({
+        where: { tournamentId: tournament.id },
+        data: { status: EscrowStatus.DISTRIBUTED, totalHeld: 0 },
+      });
+    }
 
     this.logger.log(
       `Distributed prizes for ${tournament.slug}: gross=${gross}, commission=${commission}, distributable=${distributable}`,
     );
+  }
+
+  // Preserve backwards compatibility for tests/existing flows
+  async distribute(tournamentId: string): Promise<void> {
+    const calculated = await this.calculatePayouts(tournamentId);
+    if (!calculated) return;
+    await this.prisma.$transaction(async (tx) => {
+      await this.executePayouts(tx, calculated);
+    });
   }
 
   private resolveGrossPool(tournament: {

@@ -96,6 +96,11 @@ export class PaymentsService {
         update: {},
       });
 
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: { decrement: amount } },
+      });
+
       await tx.transaction.create({
         data: {
           userId: params.userId,

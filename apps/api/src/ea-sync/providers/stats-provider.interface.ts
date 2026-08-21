@@ -43,6 +43,11 @@ export interface StatsProvider {
     eaClubId: string,
     platform: EaClubPlatform,
   ): Promise<EaPlayerMatchStat[]>;
+
+  verifyClub(
+    eaClubId: string,
+    platform: EaClubPlatform,
+  ): Promise<{ id: string; name: string } | null>;
 }
 
 export const STATS_PROVIDER = Symbol('STATS_PROVIDER');

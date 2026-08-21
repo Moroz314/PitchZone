@@ -15,7 +15,8 @@ import { TournamentStatsService } from '../stats/tournament-stats.service';
 import { BracketService } from '../tournaments/bracket.service';
 import { TournamentsGateway } from '../tournaments/tournaments.gateway';
 import { TournamentsService } from '../tournaments/tournaments.service';
-import { EaClubLinkService } from './ea-club-link.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ACTIVE_GAME_VERSION, EaClubLinkService } from './ea-club-link.service';
 import { EaMatchMatcherService, InternalMatchLinkResult } from './ea-match-matcher.service';
 import { mapEaPosition, passAccuracyPercent } from './ea-position.mapper';
 import { EaProClubsStatsProvider } from './providers/ea-pro-clubs.provider';
@@ -59,6 +60,7 @@ export class EaSyncService {
     private readonly tournamentsGateway: TournamentsGateway,
     @Inject(forwardRef(() => TournamentsService))
     private readonly tournamentsService: TournamentsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async pollAllActiveClubs(): Promise<EaSyncRunResult> {
@@ -221,6 +223,53 @@ export class EaSyncService {
     systemUserId: string,
     result: EaSyncRunResult,
   ) {
+    const link = await this.prisma.eaClubLink.findUnique({
+      where: { id: linkId },
+      include: { team: { include: { members: true } } },
+    });
+    if (!link) return;
+
+    if (link.needsReverification) {
+      this.logger.warn(`Skipping poll for team ${teamId}: needs reverification`);
+      return;
+    }
+
+    const owner = link.team.members.find((m) => m.role === 'OWNER' || m.role === 'CAPTAIN');
+
+    if (link.gameVersion !== ACTIVE_GAME_VERSION) {
+      await this.prisma.eaClubLink.update({
+        where: { id: linkId },
+        data: { needsReverification: true },
+      });
+      this.logger.warn(`Team ${teamId} EA Club Link needs reverification due to game version change`);
+
+      if (owner) {
+        await this.notifications.create(owner.userId, {
+          type: 'EA_CLUB_VERIFICATION_NEEDED',
+          title: 'Требуется подтверждение EA-клуба',
+          message: 'Версия игры изменилась. Ваши будущие матчи не будут засчитываться автоматически, пока вы не подтвердите привязку EA-клуба.',
+          link: `/teams/${teamId}/settings`,
+        });
+      }
+      return;
+    }
+
+    const clubInfo = await this.statsProvider.verifyClub(eaClubId, platform);
+    if (clubInfo && clubInfo.name !== link.lastVerifiedClubName) {
+      await this.prisma.eaClubLink.update({
+        where: { id: linkId },
+        data: { lastVerifiedClubName: clubInfo.name },
+      });
+      if (owner) {
+        await this.notifications.create(owner.userId, {
+          type: 'EA_CLUB_NAME_CHANGED',
+          title: 'Изменение названия EA-клуба',
+          message: `Название вашего EA-клуба изменилось с "${link.lastVerifiedClubName || '?'}" на "${clubInfo.name}". Если это не вы его переименовали, проверьте привязку.`,
+          link: `/teams/${teamId}/settings`,
+        });
+      }
+    }
+
     const matches = await this.statsProvider.fetchClubMatches(eaClubId, platform);
 
     await this.prisma.eaClubLink.update({

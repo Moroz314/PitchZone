@@ -39,6 +39,8 @@ export interface PlayerProfile {
     tag: string;
     avatar: string | null;
     role: string;
+    eaClubId: string | null;
+    needsReverification: boolean;
   }[];
 }
 
@@ -2208,6 +2210,9 @@ export interface EaClubLink {
   teamId: string;
   eaClubId: string;
   platform: EaClubPlatform;
+  gameVersion: string;
+  lastVerifiedClubName: string | null;
+  needsReverification: boolean;
   lastPolledAt: string | null;
   lastSyncedMatchEaId: string | null;
 }

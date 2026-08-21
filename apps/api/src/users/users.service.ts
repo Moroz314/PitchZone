@@ -15,7 +15,7 @@ export class UsersService {
         stats: true,
         teamMembers: {
           include: {
-            team: { select: { id: true, name: true, tag: true, avatar: true } },
+            team: { select: { id: true, name: true, tag: true, avatar: true, eaClubLink: { select: { eaClubId: true, needsReverification: true } } } },
           },
         },
       },
@@ -54,6 +54,8 @@ export class UsersService {
         tag: m.team.tag,
         avatar: m.team.avatar,
         role: m.role,
+        eaClubId: m.team.eaClubLink?.eaClubId ?? null,
+        needsReverification: m.team.eaClubLink?.needsReverification ?? false,
       })),
     };
   }

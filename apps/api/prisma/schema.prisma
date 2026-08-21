@@ -217,6 +217,7 @@ model Team {
   seasonMatchesAway      SeasonMatch[]           @relation("SeasonMatchAway")
   eaClubLink             EaClubLink?
   tournamentStats        TeamTournamentStat[]
+  teamAwards             TeamAward[]
 }
 
 model KitTemplate {
@@ -821,14 +822,17 @@ enum EaApiImportStatus {
 }
 
 model EaClubLink {
-  id                  String         @id @default(cuid())
-  teamId              String         @unique
-  eaClubId            String
-  platform            EaClubPlatform @default(PC)
-  lastPolledAt        DateTime?
-  lastSyncedMatchEaId String?
-  createdAt           DateTime       @default(now())
-  updatedAt           DateTime       @updatedAt
+  id                   String         @id @default(cuid())
+  teamId               String         @unique
+  eaClubId             String
+  platform             EaClubPlatform @default(PC)
+  gameVersion          String         @default("FC26")
+  lastVerifiedClubName String?
+  needsReverification  Boolean        @default(false)
+  lastPolledAt         DateTime?
+  lastSyncedMatchEaId  String?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 
   team    Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
   imports EaApiMatchImport[]
@@ -1116,6 +1120,7 @@ model Award {
   createdAt   DateTime      @default(now())
 
   userAwards UserAward[]
+  teamAwards TeamAward[]
 }
 
 model UserAward {
@@ -1130,5 +1135,19 @@ model UserAward {
   award Award @relation(fields: [awardId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([awardId])
+}
+
+model TeamAward {
+  id             String   @id @default(cuid())
+  teamId         String
+  awardId        String
+  awardedForText String
+  awardedAt      DateTime @default(now())
+
+  team  Team  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  award Award @relation(fields: [awardId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
   @@index([awardId])
 }

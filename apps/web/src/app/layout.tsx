@@ -5,7 +5,7 @@ import { AuthProvider } from '@/components/providers/auth-provider';
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
 
-import './globals.css';
+
 
 const inter = Inter({
   subsets: ['latin', 'cyrillic'],
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru" className={`${inter.variable} ${spaceGrotesk.variable}`}>
-      <body className="bg-background min-h-screen font-sans antialiased">
+      <body className="min-h-screen bg-background font-sans antialiased">
         <AuthProvider>
           <Header />
           <main>{children}</main>

@@ -502,10 +502,6 @@ export class BracketService {
           where: { id: tournamentId },
         });
         if (tournament && tournament.status !== TournamentStatus.FINISHED) {
-          await this.prisma.tournament.update({
-            where: { id: tournamentId },
-            data: { status: TournamentStatus.FINISHED, endsAt: new Date() },
-          });
           await this.tournamentCompletion.onTournamentFinished(tournamentId);
         }
       }

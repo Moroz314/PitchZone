@@ -647,6 +647,13 @@ export class TournamentsService {
         throw new ForbiddenException('Только капитан или владелец команды может регистрировать');
       }
 
+      const eaClubLink = await this.prisma.eaClubLink.findUnique({
+        where: { teamId: dto.teamId },
+      });
+      if (!eaClubLink || !eaClubLink.eaClubId) {
+        throw new ConflictException('Привяжите EA-клуб перед регистрацией на турнир. Перейдите в настройки команды.');
+      }
+
       const memberCount = await this.prisma.teamMember.count({ where: { teamId: dto.teamId } });
       if (memberCount < tournament.teamSize) {
         throw new ConflictException(

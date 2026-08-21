@@ -38,6 +38,8 @@ export function ClubManagement({ team }: ClubManagementProps) {
   const [eaClubId, setEaClubId] = useState('');
   const [eaPlatform, setEaPlatform] = useState<EaClubPlatform>('PC');
   const [eaLinkSaved, setEaLinkSaved] = useState(false);
+  const [needsReverification, setNeedsReverification] = useState(false);
+  const [lastVerifiedClubName, setLastVerifiedClubName] = useState<string | null>(null);
 
   const myMembership = team.members.find((m) => m.id === session?.user?.id);
   const canManage = myMembership && ['OWNER', 'CAPTAIN'].includes(myMembership.role);
@@ -65,32 +67,37 @@ export function ClubManagement({ team }: ClubManagementProps) {
         if (link) {
           setEaClubId(link.eaClubId);
           setEaPlatform(link.platform);
+          setNeedsReverification(link.needsReverification);
+          setLastVerifiedClubName(link.lastVerifiedClubName);
           setEaLinkSaved(true);
         }
       })
-      .catch(() => undefined);
+      .catch(console.error);
   }, [team.id]);
 
   if (!session?.user) return null;
 
-  async function handleSaveEaLink(e: React.FormEvent) {
-    e.preventDefault();
-    if (!session?.accessToken || !eaClubId.trim()) return;
+  const handleSaveEaLink = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!session?.accessToken) return;
     setLoading(true);
     setError('');
+    setMessage('');
     try {
-      await updateEaClubLink(session.accessToken, team.id, {
-        eaClubId: eaClubId.trim(),
+      const link = await updateEaClubLink(session.accessToken, team.id, {
+        eaClubId,
         platform: eaPlatform,
       });
+      setNeedsReverification(false);
+      setLastVerifiedClubName(link.lastVerifiedClubName);
       setEaLinkSaved(true);
-      setMessage('EA Club ID сохранён — воркер будет опрашивать матчи автоматически');
+      setMessage('Привязка EA Club ID успешно сохранена');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка');
+      setError(err instanceof Error ? err.message : 'Ошибка при сохранении EA Club ID');
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   async function handleRegisterSeason() {
     if (!session?.accessToken || !openSeason) return;
@@ -173,6 +180,19 @@ export function ClubManagement({ team }: ClubManagementProps) {
             <CardTitle>EA Pro Clubs — привязка клуба</CardTitle>
           </CardHeader>
           <CardContent>
+            {needsReverification && (
+              <div className="mb-4 rounded-md bg-yellow-500/10 p-4 border border-yellow-500/50">
+                <p className="text-sm text-yellow-600 dark:text-yellow-500 font-medium">
+                  Требуется перепроверка EA-клуба (например, изменилась версия игры).
+                </p>
+                <p className="text-xs text-yellow-600/80 dark:text-yellow-500/80 mt-1 mb-3">
+                  Новые матчи не будут импортироваться, пока вы не подтвердите привязку заново.
+                </p>
+                <Button size="sm" variant="outline" className="border-yellow-500/50 hover:bg-yellow-500/20" onClick={handleSaveEaLink} disabled={loading}>
+                  {loading ? 'Проверка...' : 'Подтвердить привязку'}
+                </Button>
+              </div>
+            )}
             <p className="text-muted-foreground mb-4 text-sm">
               Укажите реальный EA Club ID и платформу. Воркер PitchZone опрашивает proclubs.ea.com
               каждые 20 минут и подтягивает статистику в официальные матчи сезона.
@@ -187,6 +207,11 @@ export function ClubManagement({ team }: ClubManagementProps) {
                   onChange={(e) => setEaClubId(e.target.value.replace(/\D/g, ''))}
                   required
                 />
+                {lastVerifiedClubName && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Сохранённый клуб: <strong>{lastVerifiedClubName}</strong>
+                  </p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="eaPlatform">Платформа</Label>

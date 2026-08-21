@@ -11,12 +11,15 @@ import { EaProClubsStatsProvider } from './providers/ea-pro-clubs.provider';
 import { STATS_PROVIDER } from './providers/stats-provider.interface';
 import { StatsModule } from '../stats/stats.module';
 
+import { NotificationsModule } from '../notifications/notifications.module';
+
 @Module({
   imports: [
     StatsModule,
     SeasonsModule,
     forwardRef(() => TournamentsModule),
     PlayerProfileModule,
+    NotificationsModule,
   ],
   controllers: [EaSyncController],
   providers: [

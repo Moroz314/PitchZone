@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
-import { Calendar, Gamepad2, Lock, Trophy, Users } from 'lucide-react';
+import { Calendar, CheckCircle2, Gamepad2, Lock, Trophy, Users, XCircle } from 'lucide-react';
 
 import { Badge, Button, Card, CardContent } from '@pitchzone/ui';
 
@@ -32,7 +32,7 @@ export function TournamentHero({ tournament: initialTournament }: TournamentHero
   const [error, setError] = useState('');
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [captainTeams, setCaptainTeams] = useState<
-    { id: string; name: string; tag: string; role: string }[]
+    { id: string; name: string; tag: string; role: string; eaClubId: string | null }[]
   >([]);
 
   const isPrivate = tournament.visibility === 'PRIVATE';
@@ -190,18 +190,47 @@ export function TournamentHero({ tournament: initialTournament }: TournamentHero
             {registrationOpen && !registered && canRegister && (
               <div className="flex flex-col gap-2 self-start">
                 {isTeamTournament && captainTeams.length > 0 && (
-                  <select
-                    className="h-10 rounded-md border border-input bg-background px-3 text-sm"
-                    value={selectedTeamId}
-                    onChange={(e) => setSelectedTeamId(e.target.value)}
-                  >
-                    <option value="">Выберите команду</option>
-                    {captainTeams.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        [{t.tag}] {t.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex flex-col gap-2">
+                    <select
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      value={selectedTeamId}
+                      onChange={(e) => setSelectedTeamId(e.target.value)}
+                    >
+                      <option value="">Выберите команду</option>
+                      {captainTeams.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          [{t.tag}] {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedTeamId && (
+                      <div className="text-sm mt-1">
+                        {(() => {
+                          const team = captainTeams.find((t) => t.id === selectedTeamId);
+                          if (!team) return null;
+                          if (team.eaClubId) {
+                            return (
+                              <span className="flex items-center gap-1.5 text-green-600 dark:text-green-500">
+                                <CheckCircle2 className="h-4 w-4" />
+                                EA-клуб привязан
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="flex items-center gap-1.5 text-destructive">
+                              <XCircle className="h-4 w-4" />
+                              <span>
+                                EA-клуб не привязан.{' '}
+                                <Link href={`/teams/${team.id}/settings`} className="underline">
+                                  Привязать
+                                </Link>
+                              </span>
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    )}
+                  </div>
                 )}
                 {isTeamTournament && captainTeams.length === 0 && session && (
                   <p className="text-xs text-muted-foreground">
@@ -211,7 +240,11 @@ export function TournamentHero({ tournament: initialTournament }: TournamentHero
                     </Link>
                   </p>
                 )}
-                <Button size="lg" onClick={handleRegister} disabled={loading}>
+                <Button 
+                  size="lg" 
+                  onClick={handleRegister} 
+                  disabled={loading || (isTeamTournament && !!selectedTeamId && !captainTeams.find((t) => t.id === selectedTeamId)?.eaClubId)}
+                >
                   {loading
                     ? 'Обработка...'
                     : hasEntryFee

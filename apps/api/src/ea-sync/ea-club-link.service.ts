@@ -1,12 +1,18 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Inject, Injectable } from '@nestjs/common';
 import { TeamRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateEaClubLinkDto } from './dto/ea-sync.dto';
+import { STATS_PROVIDER, StatsProvider } from './providers/stats-provider.interface';
+
+export const ACTIVE_GAME_VERSION = 'FC26';
 
 @Injectable()
 export class EaClubLinkService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(STATS_PROVIDER) private readonly statsProvider: StatsProvider,
+  ) {}
 
   async getByTeamId(teamId: string) {
     return this.prisma.eaClubLink.findUnique({ where: { teamId } });
@@ -15,16 +21,28 @@ export class EaClubLinkService {
   async upsert(teamId: string, userId: string, dto: UpdateEaClubLinkDto) {
     await this.ensureCaptainOrOwner(teamId, userId);
 
+    const eaClubId = dto.eaClubId.trim();
+    const clubInfo = await this.statsProvider.verifyClub(eaClubId, dto.platform);
+    if (!clubInfo) {
+      throw new BadRequestException(`Клуб с ID ${eaClubId} не найден в базе EA. Проверьте правильность ID и платформы.`);
+    }
+
     return this.prisma.eaClubLink.upsert({
       where: { teamId },
       create: {
         teamId,
-        eaClubId: dto.eaClubId.trim(),
+        eaClubId: eaClubId,
         platform: dto.platform,
+        gameVersion: ACTIVE_GAME_VERSION,
+        lastVerifiedClubName: clubInfo.name,
+        needsReverification: false,
       },
       update: {
-        eaClubId: dto.eaClubId.trim(),
+        eaClubId: eaClubId,
         platform: dto.platform,
+        gameVersion: ACTIVE_GAME_VERSION,
+        lastVerifiedClubName: clubInfo.name,
+        needsReverification: false,
       },
     });
   }
