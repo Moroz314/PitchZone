@@ -39,10 +39,8 @@ export class TournamentCompletionService {
       return;
     }
 
-    let calculatedPayouts: {
-      commission: number;
-      payoutsByParticipant: Map<string, number>;
-    } | null = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let calculatedPayouts: any = null;
     try {
       calculatedPayouts = await this.prizePayout.calculatePayouts(tournamentId);
     } catch (err) {

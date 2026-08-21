@@ -441,22 +441,30 @@ export class SeasonsService {
       include: { entries: true },
     });
 
-    const teamTotals = new Map<string, { points: number; seasons: number }>();
+    const teamTotals = new Map<string, { points: number; seasons: number; gd: number; gf: number; wins: number }>();
 
     for (const season of seasons) {
       for (const entry of season.entries) {
         const weighted = entry.points * season.lanPointsWeight;
-        const current = teamTotals.get(entry.teamId) ?? { points: 0, seasons: 0 };
+        const current = teamTotals.get(entry.teamId) ?? { points: 0, seasons: 0, gd: 0, gf: 0, wins: 0 };
         teamTotals.set(entry.teamId, {
           points: current.points + weighted,
           seasons: current.seasons + 1,
+          gd: current.gd + (entry.goalsFor - entry.goalsAgainst),
+          gf: current.gf + entry.goalsFor,
+          wins: current.wins + entry.wins,
         });
       }
     }
 
     const ranked = [...teamTotals.entries()]
       .map(([teamId, data]) => ({ teamId, ...data }))
-      .sort((a, b) => b.points - a.points);
+      .sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        if (b.gd !== a.gd) return b.gd - a.gd;
+        if (b.gf !== a.gf) return b.gf - a.gf;
+        return b.wins - a.wins;
+      });
 
     await this.prisma.annualStanding.deleteMany({ where: { year: dto.year } });
 
@@ -503,22 +511,38 @@ export class SeasonsService {
     }
 
     const previousEntry = await this.findPreviousSeasonEntry(teamId, season.id);
-    if (!previousEntry?.division || previousEntry.finalPosition == null) {
-      return season.divisions.find((d) => d.name === DivisionTier.BRONZE)?.id ?? null;
-    }
-
-    const prevDivisionName = previousEntry.division.name;
-    if (prevDivisionName === DivisionTier.NONE) {
+    if (!previousEntry || previousEntry.finalPosition == null) {
       return season.divisions.find((d) => d.name === DivisionTier.BRONZE)?.id ?? null;
     }
 
     const position = previousEntry.finalPosition;
+
+    if (!previousEntry.division) {
+      const prevDivisionEntries = await this.prisma.seasonTeamEntry.count({
+        where: { seasonId: previousEntry.seasonId },
+      });
+
+      const splitSize = Math.max(1, Math.round(prevDivisionEntries / 3));
+      let targetTier: DivisionTier = DivisionTier.BRONZE;
+      if (position <= splitSize) {
+        targetTier = DivisionTier.GOLD;
+      } else if (position <= splitSize * 2) {
+        targetTier = DivisionTier.SILVER;
+      }
+      return season.divisions.find((d) => d.name === targetTier)?.id ?? null;
+    }
+
+    const prevDivisionName = previousEntry.division.name;
     const prevDivisionEntries = await this.prisma.seasonTeamEntry.count({
       where: {
         seasonId: previousEntry.seasonId,
         divisionId: previousEntry.divisionId,
       },
     });
+
+    if (prevDivisionName === DivisionTier.NONE) {
+      return season.divisions.find((d) => d.name === DivisionTier.BRONZE)?.id ?? null;
+    }
 
     const newSeasonDivision = season.divisions.find((d) => d.name === prevDivisionName);
     const rule = newSeasonDivision
@@ -530,7 +554,7 @@ export class SeasonsService {
     const promoteTopN = rule?.promoteTopN ?? 0;
     const relegateBottomN = rule?.relegateBottomN ?? 0;
 
-    let targetTier = prevDivisionName;
+    let targetTier: DivisionTier = prevDivisionName;
 
     if (prevDivisionName === DivisionTier.GOLD && position > prevDivisionEntries - relegateBottomN) {
       targetTier = DivisionTier.SILVER;

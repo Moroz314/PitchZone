@@ -69,7 +69,7 @@ export class EaProClubsStatsProvider implements StatsProvider {
     const club = json[0];
     return {
       id: String(club.clubId),
-      name: club.clubName,
+      name: String(club.clubName),
     };
   }
 
