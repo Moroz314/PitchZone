@@ -1,4 +1,4 @@
-const API_BASE = (typeof window !== 'undefined' ? (window as any).__ENV?.API_URL : process.env.NEXT_PUBLIC_API_URL) ?? 'http://localhost:4000/api';
+const API_BASE = 'https://pitchzone-api-morozzz.amvera.io/api';
 
 export interface ApiUser {
   id: string;

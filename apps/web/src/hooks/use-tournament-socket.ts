@@ -5,9 +5,7 @@ import { io, type Socket } from 'socket.io-client';
 
 import { type BracketMatch, type TournamentDetail } from '@/lib/api';
 
-const WS_BASE =
-  (typeof window !== 'undefined' ? (window as any).__ENV?.WS_URL : process.env.NEXT_PUBLIC_WS_URL) ??
-  ((typeof window !== 'undefined' ? (window as any).__ENV?.API_URL : process.env.NEXT_PUBLIC_API_URL) ?? 'http://localhost:4000/api').replace('/api', '');
+const WS_BASE = 'https://pitchzone-api-morozzz.amvera.io';
 
 interface UseTournamentSocketOptions {
   slug: string;
@@ -44,11 +42,14 @@ export function useTournamentSocket({
       onUpdate?.(data);
     });
 
-    socket.on('bracket:update', (data: { tournament: TournamentDetail; matches: BracketMatch[] }) => {
-      const merged = { ...data.tournament, matches: data.matches };
-      setTournament(merged);
-      onUpdate?.(merged);
-    });
+    socket.on(
+      'bracket:update',
+      (data: { tournament: TournamentDetail; matches: BracketMatch[] }) => {
+        const merged = { ...data.tournament, matches: data.matches };
+        setTournament(merged);
+        onUpdate?.(merged);
+      },
+    );
 
     socket.on('match:update', (data: { match: BracketMatch; tournament: TournamentDetail }) => {
       setTournament((prev) => {
