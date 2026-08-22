@@ -6,8 +6,8 @@ import { io, type Socket } from 'socket.io-client';
 import { getNotifications, getUnreadNotificationCount, type NotificationItem } from '@/lib/api';
 
 const WS_BASE =
-  process.env.NEXT_PUBLIC_WS_URL ??
-  (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace('/api', '');
+  (typeof window !== 'undefined' ? (window as any).__ENV?.WS_URL : process.env.NEXT_PUBLIC_WS_URL) ??
+  ((typeof window !== 'undefined' ? (window as any).__ENV?.API_URL : process.env.NEXT_PUBLIC_API_URL) ?? 'http://localhost:4000/api').replace('/api', '');
 
 export function useNotifications(accessToken: string | undefined, userId: string | undefined) {
   const [unreadCount, setUnreadCount] = useState(0);

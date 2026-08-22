@@ -6,8 +6,8 @@ import { io, type Socket } from 'socket.io-client';
 import { type BracketMatch, type TournamentDetail } from '@/lib/api';
 
 const WS_BASE =
-  process.env.NEXT_PUBLIC_WS_URL ??
-  (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api').replace('/api', '');
+  (typeof window !== 'undefined' ? (window as any).__ENV?.WS_URL : process.env.NEXT_PUBLIC_WS_URL) ??
+  ((typeof window !== 'undefined' ? (window as any).__ENV?.API_URL : process.env.NEXT_PUBLIC_API_URL) ?? 'http://localhost:4000/api').replace('/api', '');
 
 interface UseTournamentSocketOptions {
   slug: string;

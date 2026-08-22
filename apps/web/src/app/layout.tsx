@@ -25,6 +25,16 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru" className={`${inter.variable} ${spaceGrotesk.variable}`}>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__ENV = ${JSON.stringify({
+              API_URL: process.env.NEXT_PUBLIC_API_URL,
+              WS_URL: process.env.NEXT_PUBLIC_WS_URL,
+            })};`,
+          }}
+        />
+      </head>
       <body className="min-h-screen bg-background font-sans antialiased">
         <AuthProvider>
           <Header />
