@@ -4,6 +4,7 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import { AuthProvider } from '@/components/providers/auth-provider';
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
+// @ts-expect-error CSS is handled by Next.js and has no TypeScript declarations.
 import './globals.css';
 
 const inter = Inter({
@@ -29,13 +30,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           dangerouslySetInnerHTML={{
             __html: `window.__ENV = ${JSON.stringify({
-              API_URL: process.env.NEXT_PUBLIC_API_URL,
-              WS_URL: process.env.NEXT_PUBLIC_WS_URL,
+              API_URL: process.env['NEXT_PUBLIC_API_URL'],
+              WS_URL: process.env['NEXT_PUBLIC_WS_URL'],
             })};`,
           }}
         />
       </head>
-      <body className="min-h-screen bg-background font-sans antialiased">
+      <body className="bg-background min-h-screen font-sans antialiased">
         <AuthProvider>
           <Header />
           <main>{children}</main>
