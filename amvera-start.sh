@@ -28,6 +28,9 @@ if [ "$SERVICE_NAME" = "api" ]; then
   # Применяем миграции (удобно для Amvera, чтобы при деплое API БД обновлялась автоматически)
   echo "[SYSTEM] Running Prisma migrations..."
   npx prisma migrate deploy
+
+  echo "[SYSTEM] Seeding database..."
+  npx prisma db seed
   
   echo "[SYSTEM] Starting NestJS production server..."
   exec npm run start:prod
