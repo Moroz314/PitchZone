@@ -4,8 +4,7 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import { AuthProvider } from '@/components/providers/auth-provider';
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
-
-
+import './globals.css';
 
 const inter = Inter({
   subsets: ['latin', 'cyrillic'],
