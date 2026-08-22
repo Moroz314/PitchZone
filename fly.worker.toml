@@ -1,0 +1,11 @@
+app = "pitchzone-worker"
+primary_region = "ams"
+
+[build]
+  dockerfile = "apps/api/Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+
+[processes]
+  app = "npm run start:worker:prod"
