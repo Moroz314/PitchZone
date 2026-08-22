@@ -4,7 +4,6 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import { AuthProvider } from '@/components/providers/auth-provider';
 import { Footer } from '@/components/layout/footer';
 import { Header } from '@/components/layout/header';
-// @ts-expect-error CSS is handled by Next.js and has no TypeScript declarations.
 import './globals.css';
 
 const inter = Inter({
