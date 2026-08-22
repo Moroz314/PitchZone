@@ -1,0 +1,53 @@
+FROM node:22-alpine AS builder
+WORKDIR /app
+
+# Настройки для Next.js, чтобы собирался корректно при сборке
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# Копируем конфиги
+COPY package*.json ./
+COPY turbo.json ./
+
+# Копируем исходники
+COPY packages ./packages
+COPY apps/api ./apps/api
+COPY apps/web ./apps/web
+
+# Устанавливаем зависимости
+RUN npm install
+
+# Генерируем Prisma Client
+WORKDIR /app/apps/api
+RUN npx prisma generate
+
+# Собираем оба приложения сразу
+WORKDIR /app
+RUN npx turbo run build --filter=@pitchzone/api --filter=@pitchzone/web
+
+FROM node:22-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED 1
+
+# Копируем общие зависимости
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/packages ./packages
+
+# Копируем собранный API
+COPY --from=builder /app/apps/api ./apps/api
+
+# Копируем собранный Web (standalone)
+COPY --from=builder /app/apps/web/public ./apps/web/public
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+
+# Копируем стартовый скрипт
+COPY amvera-start.sh ./amvera-start.sh
+RUN chmod +x ./amvera-start.sh
+
+# Amvera всегда прокидывает порт внутрь контейнера через ENV-переменную PORT (по умолчанию 80)
+# Наш скрипт-обертка учтёт её.
+EXPOSE 80 3000 3001 4000
+
+CMD ["./amvera-start.sh"]
